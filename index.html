@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI工具箱</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;background:#0f172a;color:#e2e8f0;display:flex;height:100vh}
+.sidebar{width:220px;background:#0f172a;border-right:1px solid #1e293b;padding:20px;display:flex;flex-direction:column}
+.sidebar h2{font-size:20px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:24px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:10px;cursor:pointer;font-size:14px;color:#94a3b8;transition:.2s;margin-bottom:4px}
+.nav-item:hover{background:#1e293b;color:#e2e8f0}
+.nav-item.active{background:#1e293b;color:#3b82f6;font-weight:600}
+.nav-item .icon{font-size:18px}
+.server-status{display:flex;align-items:center;gap:8px;margin-top:auto;font-size:12px;color:#64748b}
+.dot{width:6px;height:6px;border-radius:50%}
+.dot.on{background:#22c55e}
+.dot.off{background:#ef4444}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.header{padding:20px 28px;border-bottom:1px solid #1e293b}
+.header h1{font-size:22px}
+.panel{flex:1;overflow-y:auto;padding:28px;display:flex;flex-direction:column;gap:16px}
+.tool-title{font-size:26px;font-weight:700;margin-bottom:8px}
+.tool-desc{font-size:14px;color:#64748b;margin-bottom:20px}
+.input-area{display:flex;gap:12px;margin-bottom:16px}
+.input-area input,.input-area textarea{flex:1;background:#1e293b;border:1px solid #334155;border-radius:10px;padding:14px 18px;font-size:15px;color:#e2e8f0;outline:none}
+.input-area textarea{min-height:120px;resize:vertical}
+.input-area input:focus,.input-area textarea:focus{border-color:#3b82f6}
+.extra-fields{display:flex;gap:12px;margin-bottom:16px}
+.extra-fields select,.extra-fields input{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:10px 14px;font-size:14px;color:#e2e8f0;outline:none}
+.send-btn{background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:#fff;border:none;border-radius:10px;padding:14px 28px;font-size:15px;font-weight:600;cursor:pointer;white-space:nowrap}
+.send-btn:hover{opacity:.9}
+.send-btn:disabled{opacity:.4}
+.msg{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:18px;line-height:1.7;font-size:14px;animation:fadeIn .3s}
+.msg .label{font-size:12px;color:#3b82f6;font-weight:600;margin-bottom:8px}
+.msg .content{white-space:pre-wrap;word-break:break-all}
+.typing{display:flex;gap:6px;padding:8px 0}
+.typing span{width:8px;height:8px;border-radius:50%;background:#64748b;animation:bounce 1.4s infinite}
+.typing span:nth-child(2){animation-delay:.2s}
+.typing span:nth-child(3){animation-delay:.4s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.card{background:#1e293b;border:1px solid #334155;border-radius:16px;padding:28px;cursor:pointer;transition:.3s}
+.card:hover{border-color:#3b82f6;transform:translateY(-2px)}
+.card .icon{font-size:36px;margin-bottom:12px}
+.card h3{font-size:18px;margin-bottom:6px}
+.card p{font-size:13px;color:#64748b;line-height:1.5}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.tag{background:#1e293b;border:1px solid #334155;border-radius:20px;padding:6px 14px;font-size:12px;color:#94a3b8;cursor:pointer;transition:.2s}
+.tag:hover{background:#334155;color:#e2e8f0}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h2>🧰 AI工具箱</h2>
+  <div class="nav-item active" onclick="showTool('qa')"><span class="icon">💬</span> 智能问答</div>
+  <div class="nav-item" onclick="showTool('translate')"><span class="icon">🌐</span> AI翻译</div>
+  <div class="nav-item" onclick="showTool('naming')"><span class="icon">📛</span> AI取名</div>
+  <div class="nav-item" onclick="showTool('fortune')"><span class="icon">🔮</span> AI运势</div>
+  <div class="nav-item" onclick="showTool('doc-qa')"><span class="icon">📄</span> 文档问答</div>
+  <div class="server-status">
+    <div class="dot on" id="statusDot"></div>
+    <span id="statusText">API Online</span>
+  </div>
+</div>
+
+<div class="main">
+  <div class="header"><h1 id="toolTitle">💬 智能问答</h1></div>
+  <div class="panel" id="panel"></div>
+</div>
+
+<script>
+const API = 'http://localhost:8001'
+let currentTool = 'qa'
+
+const toolConfig = {
+  qa: { title:'💬 智能问答', desc:'向 AI 提问任何问题', endpoint:'/qa', fields:['question'] },
+  translate: { title:'🌐 AI翻译', desc:'多语言实时翻译', endpoint:'/translate', fields:['text','target'] },
+  naming: { title:'📛 AI取名', desc:'宝宝起名、公司命名、网名生成', endpoint:'/naming', fields:['keyword','ntype','extra'] },
+  fortune: { title:'🔮 AI运势', desc:'基于星座的今日运势分析', endpoint:'/fortune', fields:['sign','year'] },
+  'doc-qa': { title:'📄 文档问答', desc:'上传文档后基于内容精准问答', endpoint:'/doc-qa', fields:['doc_id','text','question'] },
+}
+
+async function checkStatus(){
+  try{await fetch(API+'/');document.getElementById('statusDot').className='dot on';document.getElementById('statusText').textContent='API Online'}
+  catch{document.getElementById('statusDot').className='dot off';document.getElementById('statusText').textContent='API Offline'}
+}
+checkStatus();setInterval(checkStatus,10000)
+
+function showTool(name){
+  currentTool=name
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'))
+  // 找到 name 对应的 nav-item 并高亮
+  const items=document.querySelectorAll('.nav-item')
+  const idx=Object.keys(toolConfig).indexOf(name)
+  if(idx>=0&&idx<items.length)items[idx].classList.add('active')
+  const cfg=toolConfig[name]
+  document.getElementById('toolTitle').textContent=cfg.title
+  document.getElementById('panel').innerHTML=`
+    <div class="tool-desc">${cfg.desc}</div>
+    ${renderInput(name)}
+    <button class="send-btn" onclick="send()" id="sendBtn">发送</button>
+    <div id="result"></div>
+  `
+}
+
+function renderInput(name){
+  const cfg=toolConfig[name]
+  if(name==='qa') return `<div class="input-area"><textarea id="f0" placeholder="输入你的问题..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"></textarea></div>`
+  if(name==='translate') return `<div class="input-area"><input id="f0" placeholder="输入要翻译的文字" onkeydown="if(event.key==='Enter')send()"></div><div class="extra-fields"><select id="f1"><option>Chinese</option><option>English</option><option>Japanese</option><option>French</option></select></div>`
+  if(name==='naming') return `<div class="input-area"><input id="f0" placeholder="姓氏或关键字，如：王" onkeydown="if(event.key==='Enter')send()"></div><div class="extra-fields"><select id="f1"><option>宝宝起名</option><option>公司命名</option><option>网名/昵称</option><option>英文名</option></select><input id="f2" placeholder="额外要求（可选）如：男孩子"></div>`
+  if(name==='fortune') return `<div class="extra-fields"><select id="f0"><option>白羊座</option><option>金牛座</option><option>双子座</option><option>巨蟹座</option><option>狮子座</option><option>处女座</option><option>天秤座</option><option>天蝎座</option><option>射手座</option><option>摩羯座</option><option>水瓶座</option><option>双鱼座</option></select><input id="f1" placeholder="出生年份（可选）如:1995"></div>`
+  if(name==='doc-qa') return `
+    <div class="input-area"><input id="f0" placeholder="文档 ID（如：demo）"></div>
+    <div class="input-area"><textarea id="f1" placeholder="粘贴文档内容..." style="min-height:100px"></textarea></div>
+    <button class="send-btn" onclick="uploadDoc()" style="margin-bottom:12px">📤 上传文档</button>
+    <div class="input-area"><input id="f2" placeholder="基于文档提问..." onkeydown="if(event.key==='Enter')send()"></div>
+  `
+  return ''
+}
+
+async function uploadDoc(){
+  const id=document.getElementById('f0').value.trim()
+  const text=document.getElementById('f1').value.trim()
+  if(!id||!text)return alert('请输入文档ID和内容')
+  const r=await fetch(API+'/doc-qa/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({doc_id:id,text})})
+  const data=await r.json()
+  document.getElementById('result').innerHTML+=`<div class="msg"><div class="label">✅ 已上传</div><div class="content">文档"${id}"，${data.length}字</div></div>`
+}
+
+async function send(){
+  const btn=document.getElementById('sendBtn');btn.disabled=true
+  const cfg=toolConfig[currentTool]
+  let body={}
+  if(currentTool==='qa') body={question:document.getElementById('f0').value.trim()}
+  else if(currentTool==='translate') body={text:document.getElementById('f0').value.trim(),target:document.getElementById('f1').value}
+  else if(currentTool==='naming') body={keyword:document.getElementById('f0').value.trim(),ntype:document.getElementById('f1').value,extra:document.getElementById('f2')?.value||''}
+  else if(currentTool==='fortune') body={sign:document.getElementById('f0').value,year:document.getElementById('f1')?.value||''}
+  else if(currentTool==='doc-qa') body={doc_id:document.getElementById('f0').value.trim(),question:document.getElementById('f2').value.trim()}
+
+  const div=document.getElementById('result')
+  div.innerHTML='<div class="msg"><div class="typing"><span></span><span></span><span></span></div></div>'
+
+  try{
+    const controller=new AbortController()
+    const timeout=setTimeout(()=>controller.abort(),30000)
+    let url=API+cfg.endpoint
+    if(currentTool==='doc-qa') url+='/ask'
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:controller.signal})
+    clearTimeout(timeout)
+    const data=await r.json()
+    div.innerHTML=`<div class="msg"><div class="label">${cfg.title}</div><div class="content">${data.reply||JSON.stringify(data)}</div></div>`+div.innerHTML
+  }catch(e){
+    const msg=e.name==='AbortError'?'请求超时（>30秒），请重试':'无法连接服务器 ('+API+')'
+  }
+  btn.disabled=false
+}
+
+showTool('qa')
+</script>
+</body>
+</html>
